@@ -1,0 +1,10 @@
+orchestrator:
+  js:
+    js/orchestrator-init.js: {}
+    js/dist/orchestrator-app.iife.js: { minified: true }
+  css:
+    theme:
+      js/dist/orchestrator-app.css: {}
+  dependencies:
+    - core/drupal
+    - core/drupalSettings

@@ -1,0 +1,119 @@
+ai_agents_orchestrator.form:
+  path: '/admin/config/ai/agents/orchestrate'
+  defaults:
+    _form: '\Drupal\ai_agents_orchestrator\Form\AIAgentsOrchestratorForm'
+    _title: 'AI Agents Orchestrator'
+  requirements:
+    _permission: 'orchestrate ai agents'
+
+ai_agents_orchestrator.chat:
+  path: '/admin/config/ai/agents/orchestrate/chat'
+  defaults:
+    _controller: '\Drupal\ai_agents_orchestrator\Controller\AIAgentsOrchestratorController::chat'
+  methods: [POST]
+  requirements:
+    _permission: 'orchestrate ai agents'
+
+ai_agents_orchestrator.plan_status:
+  path: '/admin/config/ai/agents/orchestrate/plan-status'
+  defaults:
+    _controller: '\Drupal\ai_agents_orchestrator\Controller\AIAgentsOrchestratorController::planStatus'
+  methods: [GET]
+  requirements:
+    _permission: 'orchestrate ai agents'
+
+ai_agents_orchestrator.poll:
+  path: '/admin/config/ai/agents/orchestrate/poll/{thread_id}'
+  defaults:
+    _controller: '\Drupal\ai_agents_orchestrator\Controller\AIAgentsOrchestratorController::poll'
+  methods: [GET]
+  requirements:
+    _permission: 'orchestrate ai agents'
+
+ai_agents_orchestrator.save_plan:
+  path: '/admin/config/ai/agents/orchestrate/save-plan'
+  defaults:
+    _controller: '\Drupal\ai_agents_orchestrator\Controller\AIAgentsOrchestratorController::savePlan'
+  methods: [POST]
+  requirements:
+    _permission: 'orchestrate ai agents'
+
+ai_agents_orchestrator.plan_metadata:
+  path: '/admin/config/ai/agents/orchestrate/plan-metadata'
+  defaults:
+    _controller: '\Drupal\ai_agents_orchestrator\Controller\AIAgentsOrchestratorController::planMetadata'
+  methods: [GET]
+  requirements:
+    _permission: 'orchestrate ai agents'
+
+ai_agents_orchestrator.load_chat_history:
+  path: '/admin/config/ai/agents/orchestrate/chat-history'
+  defaults:
+    _controller: '\Drupal\ai_agents_orchestrator\Controller\AIAgentsOrchestratorController::loadChatHistory'
+  methods: [GET]
+  requirements:
+    _permission: 'orchestrate ai agents'
+
+ai_agents_orchestrator.save_chat_history:
+  path: '/admin/config/ai/agents/orchestrate/chat-history'
+  defaults:
+    _controller: '\Drupal\ai_agents_orchestrator\Controller\AIAgentsOrchestratorController::saveChatHistory'
+  methods: [POST]
+  requirements:
+    _permission: 'orchestrate ai agents'
+
+ai_agents_orchestrator.list_threads:
+  path: '/admin/config/ai/agents/orchestrate/threads'
+  defaults:
+    _controller: '\Drupal\ai_agents_orchestrator\Controller\AIAgentsOrchestratorController::listThreads'
+  methods: [GET]
+  requirements:
+    _permission: 'orchestrate ai agents'
+
+ai_agents_orchestrator.create_thread:
+  path: '/admin/config/ai/agents/orchestrate/threads'
+  defaults:
+    _controller: '\Drupal\ai_agents_orchestrator\Controller\AIAgentsOrchestratorController::createThread'
+  methods: [POST]
+  requirements:
+    _permission: 'orchestrate ai agents'
+
+ai_agents_orchestrator.update_thread_metadata:
+  path: '/admin/config/ai/agents/orchestrate/thread-metadata'
+  defaults:
+    _controller: '\Drupal\ai_agents_orchestrator\Controller\AIAgentsOrchestratorController::updateThreadMetadata'
+  methods: [POST]
+  requirements:
+    _permission: 'orchestrate ai agents'
+
+ai_agents_orchestrator.delete_thread:
+  path: '/admin/config/ai/agents/orchestrate/thread'
+  defaults:
+    _controller: '\Drupal\ai_agents_orchestrator\Controller\AIAgentsOrchestratorController::deleteThread'
+  methods: [DELETE]
+  requirements:
+    _permission: 'orchestrate ai agents'
+
+ai_agents_orchestrator.execute_plan:
+  path: '/admin/config/ai/agents/orchestrate/execute'
+  defaults:
+    _controller: '\Drupal\ai_agents_orchestrator\Controller\AIAgentsOrchestratorController::executePlan'
+  methods: [POST]
+  requirements:
+    _permission: 'orchestrate ai agents'
+
+ai_agents_orchestrator.execution_steps:
+  path: '/admin/config/ai/agents/orchestrate/execution-steps'
+  defaults:
+    _controller: '\Drupal\ai_agents_orchestrator\Controller\AIAgentsOrchestratorController::executionSteps'
+  methods: [GET]
+  requirements:
+    _permission: 'orchestrate ai agents'
+
+ai_agents_orchestrator.list_agents:
+  path: '/admin/config/ai/agents/orchestrate/agents'
+  defaults:
+    _controller: '\Drupal\ai_agents_orchestrator\Controller\AIAgentsOrchestratorController::listAgents'
+  methods: [GET]
+  requirements:
+    _permission: 'orchestrate ai agents'

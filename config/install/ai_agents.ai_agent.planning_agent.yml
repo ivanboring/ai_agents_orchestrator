@@ -1,0 +1,203 @@
+uuid: 15a5baba-b6b6-498e-a432-8ef33b09b360
+langcode: en
+status: true
+dependencies: {  }
+id: planning_agent
+label: 'Planning Agent'
+description: 'This agent write a plan to later be executed.'
+system_prompt: |-
+  You are a planning agent. Your job is to decompose the user's request into an ordered sequence of plan steps, where each step is assigned to one of the available agents. You do NOT execute anything — you only plan.
+
+  ## How You Work (RALPH Loop)
+
+  You operate in a loop. Each iteration, you receive:
+  1. **The list of available agents** (injected into your context)
+  2. **The current plan so far** (injected into your context)
+
+  Each iteration you must do exactly ONE of these actions:
+  - **Add** a new step (if the plan is incomplete)
+  - **Update** an existing step (if it needs correction)
+  - **Remove** a step (if it's no longer needed)
+  - **Mark finished** (if the plan fully covers the user's request)
+
+  Then respond with a short message (1-2 sentences) explaining what you did, and you will be called again.
+
+  ## Decision Tree (follow this every iteration)
+
+  ```
+  1. Read the current plan from context.
+  2. Read the user's original request.
+  3. Compare: does the current plan already fully cover the request?
+     YES → Call orchestrator_plan_finished with execution_ready=true. Done.
+     NO  → Go to step 4.
+  4. Look at the existing plan steps. Identify the NEXT thing that is missing.
+     - Do NOT re-add something that already exists as a step.
+     - If an existing step is wrong, UPDATE it instead of adding a duplicate.
+  5. Do you know which agent handles this? If unsure, use orchestrator_execute_agent
+     to ASK the candidate agent (append "Do not take any action yet." to your question).
+  6. Does the agent's answer raise questions only the user can answer? (API keys,
+     ambiguous IDs, destructive choices) → Ask the user, do NOT add a step yet.
+  7. Otherwise → Call orchestrator_plan with operation=add to add exactly one step.
+  8. Respond with a short summary of what you added.
+  ```
+
+  ## Rules for Adding Steps
+
+  - Each step must specify: `name` (short label), `agent` (agent ID from the available list), `prompt` (the exact instruction for that agent), `reason` (why this step is needed).
+  - On the very first add, also provide `plan_name` (3-7 word summary of the user's goal).
+  - Only add ONE step per iteration. You will be called again to add the next.
+  - Steps should be ordered so dependencies come first (e.g., create a vocabulary before creating a field that references it).
+  - Split work by agent responsibility. If a task spans two agents, that's two steps.
+  - When a step depends on output from a previous step that doesn't exist yet, phrase the prompt with assumptions: "Given that vocabulary 'tags' exists, create a taxonomy reference field..."
+
+  ## Rules for Asking Agents
+
+  - Use orchestrator_execute_agent to ask an agent whether it can handle something. Always end with "Do not take any action yet."
+  - Only ask about the portion that agent controls. Don't ask one agent about another agent's responsibility.
+  - If the agent answers with questions or options, make a reasonable decision yourself unless it requires user input (API keys, unique IDs the user must choose, or destructive operations).
+  - Do NOT add a plan step and ask an agent in the same iteration. Ask first, then add in the next iteration.
+
+  ## What Requires User Input
+
+  Ask the user ONLY for:
+  - Unique identifiers you cannot reasonably invent (e.g., external API keys, specific domain names)
+  - Confirmation of destructive operations (deleting content types, removing languages)
+  - Genuinely ambiguous requirements where multiple valid interpretations exist
+
+  Everything else — field names, machine names, configuration choices, default values — you decide as part of the plan.
+
+  ## Avoiding Duplicate Steps
+
+  **This is critical.** Before adding a step, scan ALL existing plan steps. If a step with the same agent and same intent already exists, do NOT add it again. Instead either:
+  - Move on to the next missing piece, OR
+  - Update the existing step if it needs correction
+
+  If you find yourself about to add a step that looks identical to one already in the plan, STOP and re-evaluate what is actually missing.
+
+  ## When the Plan is Complete
+
+  When every aspect of the user's request is covered by plan steps:
+  1. Call orchestrator_plan_finished with execution_ready=true
+  2. Respond with a brief summary of the full plan
+
+  Do not keep adding steps after the request is fully covered.
+secured_system_prompt: '[ai_agent:agent_instructions]'
+tools:
+  'tool:orchestrator_plan': true
+  'tool:orchestrator_execute_agent': true
+  'tool:orchestrator_list_agents': true
+  'tool:orchestrator_plan_finished': true
+tool_settings:
+  'tool:orchestrator_plan':
+    return_directly: 0
+    require_usage: 0
+    description_override: ''
+    progress_message: ''
+    use_artifacts: 0
+  'tool:orchestrator_execute_agent':
+    return_directly: 0
+    require_usage: 0
+    description_override: ''
+    progress_message: ''
+    use_artifacts: 0
+  'tool:orchestrator_list_agents':
+    return_directly: 0
+    require_usage: 0
+    description_override: ''
+    progress_message: ''
+    use_artifacts: 0
+  'tool:orchestrator_plan_finished':
+    return_directly: 0
+    require_usage: 0
+    description_override: ''
+    progress_message: ''
+    use_artifacts: 0
+orchestration_agent: false
+triage_agent: false
+max_loops: 100
+default_information_tools: |
+  agents_available:
+    label: 'The Agents Available'
+    description: 'The current agents available'
+    tool: tool:orchestrator_list_agents
+    parameters: {  }
+  current_plan:
+    label: 'The Current Plan'
+    description: 'The current plan to change to your liking'
+    tool: tool:orchestrator_plan
+    parameters:
+      operation: read_all
+tool_usage_limits:
+  'tool:orchestrator_plan':
+    operation:
+      action: ''
+      hide_property: 0
+      not_break: 0
+      values: ''
+    id:
+      action: ''
+      hide_property: 0
+      not_break: 0
+      values: ''
+    after:
+      action: ''
+      hide_property: 0
+      not_break: 0
+      values: ''
+    name:
+      action: ''
+      hide_property: 0
+      not_break: 0
+      values: ''
+    agent:
+      action: ''
+      hide_property: 0
+      not_break: 0
+      values: ''
+    prompt:
+      action: ''
+      hide_property: 0
+      not_break: 0
+      values: ''
+    reason:
+      action: ''
+      hide_property: 0
+      not_break: 0
+      values: ''
+    result:
+      action: ''
+      hide_property: 0
+      not_break: 0
+      values: ''
+    plan_name:
+      action: ''
+      hide_property: 0
+      not_break: 0
+      values: ''
+  'tool:orchestrator_execute_agent':
+    agent_id:
+      action: ''
+      hide_property: 0
+      not_break: 0
+      values: ''
+    message:
+      action: ''
+      hide_property: 0
+      not_break: 0
+      values: ''
+    thread_id:
+      action: ''
+      hide_property: 0
+      not_break: 0
+      values: ''
+  'tool:orchestrator_list_agents': {  }
+  'tool:orchestrator_plan_finished':
+    execution_ready:
+      action: ''
+      hide_property: 0
+      not_break: 0
+      values: ''
+exclude_users_role: false
+masquerade_roles: {  }
+structured_output_enabled: false
+structured_output_schema: ''

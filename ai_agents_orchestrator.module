@@ -1,0 +1,33 @@
+<?php
+
+/**
+ * @file
+ * AI Agents Orchestrator module.
+ */
+
+use Drupal\Core\Url;
+
+/**
+ * Implements hook_page_attachments().
+ *
+ * Attaches the orchestrator widget on every page for authorised users.
+ */
+function ai_agents_orchestrator_page_attachments(array &$attachments): void {
+  if (!\Drupal::currentUser()->hasPermission('orchestrate ai agents')) {
+    return;
+  }
+
+  $attachments['#attached']['library'][] = 'ai_agents_orchestrator/orchestrator';
+  $attachments['#attached']['drupalSettings']['aiAgentsOrchestrator'] = [
+    'chatUrl' => Url::fromRoute('ai_agents_orchestrator.chat')->toString(),
+    'planStatusUrl' => Url::fromRoute('ai_agents_orchestrator.plan_status')->toString(),
+    'pollUrl' => Url::fromRoute('ai_agents_orchestrator.poll', ['thread_id' => '__THREAD_ID__'])->toString(),
+    'savePlanUrl' => Url::fromRoute('ai_agents_orchestrator.save_plan')->toString(),
+    'chatHistoryUrl' => Url::fromRoute('ai_agents_orchestrator.load_chat_history')->toString(),
+    'threadsUrl' => Url::fromRoute('ai_agents_orchestrator.list_threads')->toString(),
+    'threadMetadataUrl' => Url::fromRoute('ai_agents_orchestrator.update_thread_metadata')->toString(),
+    'deleteThreadUrl' => Url::fromRoute('ai_agents_orchestrator.delete_thread')->toString(),
+    'executeUrl' => Url::fromRoute('ai_agents_orchestrator.execute_plan')->toString(),
+    'agentsUrl' => Url::fromRoute('ai_agents_orchestrator.list_agents')->toString(),
+  ];
+}

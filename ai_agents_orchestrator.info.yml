@@ -1,0 +1,10 @@
+name: AI Agents Orchestrator
+type: module
+description: An experimental orchestration.
+experimental: true
+package: AI Tools
+core_version_requirement: ^11
+
+dependencies:
+  - ai_agents:ai_agents
+  - tool:tool

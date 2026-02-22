@@ -1,0 +1,66 @@
+/**
+ * @file
+ * Styles for the AI Agents Orchestrator page.
+ */
+
+.orchestrator-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 1.5rem;
+  min-height: 70vh;
+}
+
+.orchestrator-panel {
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+}
+
+.orchestrator-panel__header {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #e0e0e0;
+  background: #f7f7f7;
+  border-radius: 6px 6px 0 0;
+}
+
+.orchestrator-panel__title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.orchestrator-panel__body {
+  padding: 1rem;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.orchestrator-panel--config .form-item {
+  margin-bottom: 1rem;
+}
+
+.orchestrator-panel--plan .orchestrator-panel__body,
+.orchestrator-panel--execution .orchestrator-panel__body {
+  font-family: monospace;
+  font-size: 0.875rem;
+  white-space: pre-wrap;
+  color: #555;
+}
+
+.orchestrator-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.orchestrator-actions .button {
+  flex: 1;
+}
+
+@media (max-width: 900px) {
+  .orchestrator-layout {
+    grid-template-columns: 1fr;
+  }
+}

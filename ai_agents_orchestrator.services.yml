@@ -1,0 +1,29 @@
+services:
+  ai_agents_orchestrator.plan_document:
+    class: Drupal\ai_agents_orchestrator\Service\PlanDocumentService
+    arguments: ['@file_system', '@current_user']
+
+  ai_agents_orchestrator.plan_execution:
+    class: Drupal\ai_agents_orchestrator\Service\PlanExecutionService
+    arguments: ['@ai_agents_orchestrator.plan_document', '@queue']
+
+  ai_agents_orchestrator.thread_file_status_storage:
+    class: Drupal\ai_agents_orchestrator\Service\ThreadFileStatusStorage
+    arguments: ['@file_system']
+
+  ai_agents_orchestrator.session_safe_status_storage:
+    class: Drupal\ai_agents_orchestrator\Service\SessionSafeStatusStorageDecorator
+    decorates: ai_agents.private_temp_status_storage
+    arguments: ['@ai_agents_orchestrator.session_safe_status_storage.inner', '@session_manager']
+
+  ai_agents_orchestrator.step_debug_collector:
+    class: Drupal\ai_agents_orchestrator\Service\StepDebugCollector
+    arguments: ['@ai_agents_orchestrator.thread_file_status_storage', '@datetime.time', '@plugin.manager.ai.function_calls']
+    tags:
+      - { name: event_subscriber }
+
+  ai_agents_orchestrator.canvas_integration:
+    class: Drupal\ai_agents_orchestrator\EventSubscriber\CanvasIntegrationSubscriber
+    arguments: ['@current_user']
+    tags:
+      - { name: event_subscriber }

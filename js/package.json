@@ -1,0 +1,28 @@
+{
+    "name": "ai-agents-orchestrator",
+    "version": "1.0.0",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "dev": "vite",
+        "build": "vite build",
+        "preview": "vite preview",
+        "typecheck": "tsc --noEmit"
+    },
+    "dependencies": {
+        "@ai-sdk/react": "^1.2.0",
+        "ai": "^4.3.0",
+        "react": "^18.2.0",
+        "react-dom": "^18.2.0",
+        "uuid": "^9.0.1"
+    },
+    "devDependencies": {
+        "@types/react": "^18.2.45",
+        "@types/react-dom": "^18.2.18",
+        "@types/uuid": "^9.0.7",
+        "@vitejs/plugin-react": "^4.2.1",
+        "terser": "^5.46.0",
+        "typescript": "^5.3.3",
+        "vite": "^5.0.10"
+    }
+}
