@@ -1,6 +1,10 @@
+uuid: 84b8d894-03db-4d81-b9fc-564da973ecbc
 langcode: en
 status: true
-dependencies: {  }
+dependencies:
+  enforced:
+    module:
+      - ai_agents_orchestrator
 id: execution_agent
 label: 'Execution Agent'
 description: 'This agent executes an approved plan step by step, using context from previous results to inform each next step.'
@@ -112,12 +116,12 @@ tool_settings:
     use_artifacts: 0
 orchestration_agent: false
 triage_agent: false
-max_loops: 100
+max_loops: 5
 default_information_tools: |
   current_plan:
     label: 'The Current Plan'
     description: 'The current plan with all steps and their execution results'
-    tool: tool:orchestrator_plan
+    tool: 'tool:orchestrator_plan'
     parameters:
       operation: read_all
 tool_usage_limits:

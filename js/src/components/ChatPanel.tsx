@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { renderMarkdown } from '../utils/renderMarkdown';
 
 interface ChatMessage {
     id: string;
@@ -17,14 +18,19 @@ interface ProgressItem {
     time?: number;
 }
 
+/** Callback when pick_component is detected. */
+type ComponentPickedCallback = (componentId: string) => void;
+
 interface ChatPanelProps {
     chatUrl: string;
     pollUrl: string;
     chatHistoryUrl: string;
     threadName?: string;
     isDirect?: boolean;
+    isComponent?: boolean;
     onThreadNamed?: (name: string) => void;
     onAgentRunningChange?: (running: boolean) => void;
+    onComponentPicked?: ComponentPickedCallback;
 }
 
 /** Generate a unique thread ID for progress tracking. */
@@ -36,7 +42,7 @@ function generateThreadId(): string {
 
 const MAX_LOOPS = 50;
 
-export function ChatPanel({ chatUrl, pollUrl, chatHistoryUrl, threadName = '', isDirect = false, onThreadNamed, onAgentRunningChange }: ChatPanelProps) {
+export function ChatPanel({ chatUrl, pollUrl, chatHistoryUrl, threadName = '', isDirect = false, isComponent = false, onThreadNamed, onAgentRunningChange, onComponentPicked }: ChatPanelProps) {
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -84,6 +90,26 @@ export function ChatPanel({ chatUrl, pollUrl, chatHistoryUrl, threadName = '', i
                 const data = await res.json();
                 if (Array.isArray(data.items)) {
                     setProgressItems(data.items);
+
+                    // Detect pick_component tool calls for component mode.
+                    if (isComponent && onComponentPicked) {
+                        for (const item of data.items) {
+                            if (item.tool_name && item.tool_name.includes('pick_component') && item.tool_input) {
+                                try {
+                                    const parsed = typeof item.tool_input === 'string' ? JSON.parse(item.tool_input) : item.tool_input;
+                                    // tool_input values may be double-JSON-encoded strings
+                                    let compName = parsed.component_name || parsed['"component_name"'];
+                                    if (typeof compName === 'string') {
+                                        // Strip surrounding quotes from double-encoded values
+                                        compName = compName.replace(/^"|"$/g, '');
+                                    }
+                                    if (compName) {
+                                        onComponentPicked(compName);
+                                    }
+                                } catch { /* ignore parse errors */ }
+                            }
+                        }
+                    }
                 }
             } catch {
                 // Ignore poll errors.
@@ -92,7 +118,7 @@ export function ChatPanel({ chatUrl, pollUrl, chatHistoryUrl, threadName = '', i
 
         fetchProgress();
         pollIntervalRef.current = setInterval(fetchProgress, 1000);
-    }, [pollUrl, stopPolling]);
+    }, [pollUrl, stopPolling, isComponent, onComponentPicked]);
 
     const handleSubmit = useCallback(async (e: React.FormEvent) => {
         e.preventDefault();
@@ -125,45 +151,49 @@ export function ChatPanel({ chatUrl, pollUrl, chatHistoryUrl, threadName = '', i
         let iteration = 0;
 
         try {
-            if (isDirect) {
-                // ── Direct agent: single request, no loop, with polling. ──
+            if (isDirect || isComponent) {
+                // ── Direct / Component agent: single request, no loop, with polling. ──
                 // Send the full conversation history so the LLM has context.
                 const allMessages = [
                     ...messages.filter(m => !m.temp).map(m => ({ role: m.role, content: m.content })),
                     { role: 'user', content: text },
                 ];
 
-                const threadId = generateThreadId();
-                startPolling(threadId);
+                const sendAgentRequest = async (msgs: Array<{ role: string, content: string }>) => {
+                    const threadId = generateThreadId();
+                    startPolling(threadId);
 
-                const controller = new AbortController();
-                abortRef.current = controller;
+                    const controller = new AbortController();
+                    abortRef.current = controller;
 
-                const res = await fetch(chatUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        thread_id: threadId,
-                        messages: allMessages,
-                    }),
-                    signal: controller.signal,
-                });
+                    const res = await fetch(chatUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            thread_id: threadId,
+                            messages: msgs,
+                        }),
+                        signal: controller.signal,
+                    });
 
-                stopPolling();
+                    stopPolling();
 
-                // Final poll to capture remaining progress events.
-                try {
-                    const finalUrl = pollUrl.replace('__THREAD_ID__', threadId);
-                    const finalRes = await fetch(finalUrl);
-                    const finalData = await finalRes.json();
-                    if (Array.isArray(finalData.items)) {
-                        setProgressItems(finalData.items);
-                    }
-                } catch { /* ignore */ }
+                    // Final poll to capture remaining progress events.
+                    try {
+                        const finalUrl = pollUrl.replace('__THREAD_ID__', threadId);
+                        const finalRes = await fetch(finalUrl);
+                        const finalData = await finalRes.json();
+                        if (Array.isArray(finalData.items)) {
+                            setProgressItems(finalData.items);
+                        }
+                    } catch { /* ignore */ }
 
-                if (!res.ok) throw new Error(`Agent returned ${res.status}`);
+                    if (!res.ok) throw new Error(`Agent returned ${res.status}`);
+                    return res.json();
+                };
 
-                const data = await res.json();
+                // First request (generator for component, or direct agent).
+                const data = await sendAgentRequest(allMessages);
                 const responseText = data.message || data.error || 'No response from agent.';
 
                 setMessages(prev => [...prev, {
@@ -171,6 +201,9 @@ export function ChatPanel({ chatUrl, pollUrl, chatHistoryUrl, threadName = '', i
                     role: 'assistant' as const,
                     content: responseText,
                 }]);
+
+                // The generator↔reviewer loop runs entirely server-side.
+                // The response already contains the final result.
             } else {
                 // ── Planning agent: multi-iteration loop with progress polling. ──
                 while (!finished && iteration < MAX_LOOPS) {
@@ -270,7 +303,7 @@ export function ChatPanel({ chatUrl, pollUrl, chatHistoryUrl, threadName = '', i
             stopPolling();
             abortRef.current = null;
         }
-    }, [input, isLoading, isDirect, chatUrl, pollUrl, stopPolling, startPolling, onAgentRunningChange]);
+    }, [input, isLoading, isDirect, isComponent, chatUrl, pollUrl, stopPolling, startPolling, onAgentRunningChange, onComponentPicked]);
 
     // Cleanup on unmount.
     useEffect(() => {
@@ -287,8 +320,22 @@ export function ChatPanel({ chatUrl, pollUrl, chatHistoryUrl, threadName = '', i
         details?: { agent?: string; prompt?: string };
     }
 
+    // Convert a machine tool name to a human-readable label.
+    const humanizeToolName = (raw: string): string => {
+        // Strip common prefixes like "tool__module__" or "ai_agents_sdc__".
+        let name = raw
+            .replace(/^tool__[a-z0-9_]+__/, '')    // tool__ai_agents_sdc__pick_component → pick_component
+            .replace(/^ai_agents?_[a-z0-9_]+__/, '') // fallback prefix strip
+            .replace(/^orchestrator_/, '');           // orchestrator_execute_agent → execute_agent
+        // Replace underscores with spaces and title-case.
+        return name
+            .replace(/_/g, ' ')
+            .replace(/\b\w/g, c => c.toUpperCase());
+    };
+
     const displayProgress = progressItems.reduce<ProgressDisplay[]>((acc, item) => {
-        const name = item.tool_feedback_message || (item.tool_name ? `Running ${item.tool_name}` : '');
+        const toolLabel = item.tool_name ? humanizeToolName(item.tool_name) : '';
+        const name = item.tool_feedback_message || (toolLabel ? `Running ${toolLabel}` : '');
         if (!name) return acc;
 
         // Parse tool_input for execute_agent to extract agent_id and message.
@@ -311,7 +358,8 @@ export function ChatPanel({ chatUrl, pollUrl, chatHistoryUrl, threadName = '', i
                 acc.push({ name, status: 'running', details });
             }
         } else if (item.type === 'tool_finished') {
-            const finishedName = item.tool_feedback_message || (item.tool_name ? `Running ${item.tool_name}` : '');
+            const finishedLabel = item.tool_name ? humanizeToolName(item.tool_name) : '';
+            const finishedName = item.tool_feedback_message || (finishedLabel ? `Running ${finishedLabel}` : '');
             const existing = acc.find(a => a.name === finishedName);
             if (existing) {
                 existing.status = 'done';
@@ -346,7 +394,10 @@ export function ChatPanel({ chatUrl, pollUrl, chatHistoryUrl, threadName = '', i
                             {message.temp && <span className="chat-message-temp-badge">interim</span>}
                         </div>
                         <div className="chat-message-content">
-                            {message.content}
+                            {message.role === 'assistant'
+                                ? <div className="markdown-rendered" dangerouslySetInnerHTML={{ __html: renderMarkdown(message.content) }} />
+                                : message.content
+                            }
                         </div>
                     </div>
                 ))}

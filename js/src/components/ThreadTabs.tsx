@@ -5,10 +5,11 @@ interface ThreadInfo {
     id: string;
     name: string;
     date: string;
-    type: 'planning' | 'direct';
+    type: 'planning' | 'direct' | 'component';
     agent_id: string;
     is_executing: boolean;
     execution_ready: boolean;
+    last_updated: number;
 }
 
 interface AgentOption {
@@ -21,7 +22,7 @@ interface ThreadTabsProps {
     threads: ThreadInfo[];
     activeThreadId: string;
     onSelect: (threadId: string) => void;
-    onCreate: (type: 'planning' | 'direct', agentId: string) => void;
+    onCreate: (type: 'planning' | 'direct' | 'component', agentId: string) => void;
     onDelete: (threadId: string) => void;
     isOpen: boolean;
     onToggle: () => void;
@@ -38,6 +39,12 @@ function formatDate(dateStr: string): string {
     const m = dateStr.substring(4, 6);
     const d = dateStr.substring(6, 8);
     return `${d}/${m}/${y}`;
+}
+
+function formatTime(ts: number): string {
+    if (!ts) return '';
+    const d = new Date(ts * 1000);
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
 }
 
 export function ThreadTabs({ threads, activeThreadId, onSelect, onCreate, onDelete, isOpen, onToggle, isFullscreen, onToggleFullscreen, agentsUrl }: ThreadTabsProps) {
@@ -94,6 +101,11 @@ export function ThreadTabs({ threads, activeThreadId, onSelect, onCreate, onDele
         setAgentFilter('');
     };
 
+    const handlePickComponent = () => {
+        setCreateStep('idle');
+        onCreate('component', 'sdc_generator');
+    };
+
     const handleSelectAgent = (agentId: string) => {
         setCreateStep('idle');
         onCreate('direct', agentId);
@@ -146,6 +158,13 @@ export function ThreadTabs({ threads, activeThreadId, onSelect, onCreate, onDele
                             <small>Talk directly to a specific agent</small>
                         </span>
                     </button>
+                    <button type="button" className="thread-create-option" onClick={handlePickComponent}>
+                        <span className="thread-create-option-icon">🧩</span>
+                        <span className="thread-create-option-text">
+                            <strong>Component</strong>
+                            <small>Generate & review an SDC component</small>
+                        </span>
+                    </button>
                     <button type="button" className="thread-create-cancel" onClick={handleCancelCreate}>Cancel</button>
                 </div>
             )}
@@ -196,7 +215,7 @@ export function ThreadTabs({ threads, activeThreadId, onSelect, onCreate, onDele
                             >
                                 <div className="thread-item-top">
                                     <span className="thread-item-name">
-                                        <span className="thread-type-badge">{thread.type === 'direct' ? '🤖' : '📋'}</span>
+                                        <span className="thread-type-badge">{thread.type === 'direct' ? '🤖' : thread.type === 'component' ? '🧩' : '📋'}</span>
                                         {thread.name || 'Thread'}
                                     </span>
                                     <button
@@ -208,7 +227,7 @@ export function ThreadTabs({ threads, activeThreadId, onSelect, onCreate, onDele
                                         ×
                                     </button>
                                 </div>
-                                <span className="thread-item-date">{formatDate(thread.date)}</span>
+                                <span className="thread-item-date">{formatDate(thread.date)}{thread.last_updated ? ` · ${formatTime(thread.last_updated)}` : ''}</span>
                             </div>
                         ))}
                     </div>

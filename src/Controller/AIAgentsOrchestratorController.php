@@ -71,7 +71,7 @@ class AIAgentsOrchestratorController extends ControllerBase
             $container->get('ai_agents_orchestrator.plan_document'),
             $container->get('ai_agents_orchestrator.plan_execution'),
             $container->get('ai_agents.agent_status_poller'),
-            $container->get('ai_agents.private_temp_status_storage'),
+            $container->get('ai_agents_orchestrator.session_safe_status_storage'),
         );
     }
 
@@ -161,9 +161,14 @@ class AIAgentsOrchestratorController extends ControllerBase
 
             // Determine which agent to use based on thread type.
             $metadata = $this->planDocumentService->readMetadata();
-            $isDirect = (($metadata['type'] ?? 'planning') === 'direct' && !empty($metadata['agent_id']));
+            $threadType = $metadata['type'] ?? 'planning';
+            $isDirect = ($threadType === 'direct' && !empty($metadata['agent_id']));
+            $isComponent = ($threadType === 'component');
 
-            if ($isDirect) {
+            if ($isComponent) {
+                // ── Component mode: generator ↔ reviewer loop. ──
+                $response_text = $this->runComponentLoop($chat_messages, $poll_thread_id, $provider, $model_name);
+            } elseif ($isDirect) {
                 // ── Direct agent mode: use the standard agent runner. ──
                 $agentId = $metadata['agent_id'];
                 $agent = $this->agentsManager->createInstance($agentId);
@@ -262,6 +267,122 @@ class AIAgentsOrchestratorController extends ControllerBase
     }
 
     // -----------------------------------------------------------------------
+    // Component generator ↔ reviewer loop.
+    // -----------------------------------------------------------------------
+
+    /**
+     * Runs the SDC generator ↔ reviewer loop.
+     *
+     * 1. Run generator → parse structured output {answer, run_review}.
+     * 2. If run_review is false, return the answer.
+     * 3. Run reviewer with (original question + generator answer) → parse
+     *    structured output {rating, improvements, error_messages, should_refix}.
+     * 4. If should_refix, re-run generator with feedback context. Max 5 loops.
+     *
+     * @param \Drupal\ai\OperationType\Chat\ChatMessage[] $chat_messages
+     *   The chat messages from the frontend (includes conversation history).
+     * @param string $poll_thread_id
+     *   Thread ID for progress tracking.
+     * @param object $provider
+     *   The AI provider plugin instance.
+     * @param string $model_name
+     *   The model name.
+     *
+     * @return string
+     *   The final response text to send back to the frontend.
+     */
+    private function runComponentLoop(array $chat_messages, string $poll_thread_id, $provider, string $model_name): string
+    {
+        $maxIterations = 5;
+        $finalAnswer = '';
+
+        // Extract the original user message (last user message in the history).
+        $originalUserText = '';
+        foreach (array_reverse($chat_messages) as $msg) {
+            if ($msg->getRole() === 'user') {
+                $originalUserText = $msg->getText();
+                break;
+            }
+        }
+
+        // The messages sent to the generator on the first run are the full
+        // conversation history from the frontend. On subsequent iterations we
+        // build a fresh message with feedback context.
+        $generatorMessages = $chat_messages;
+
+        for ($iteration = 1; $iteration <= $maxIterations; $iteration++) {
+            // ── 1. Run the generator. ──
+            /** @var \Drupal\ai_agents\PluginInterfaces\ConfigAiAgentInterface $generator */
+            $generator = $this->agentsManager->createInstance('sdc_generator');
+            $generator->setChatHistory($generatorMessages);
+            $generator->setProgressThreadId($poll_thread_id);
+            $generator->setAiProvider($provider);
+            $generator->setModelName($model_name);
+            $generator->setAiConfiguration([]);
+            $generator->determineSolvability();
+            $genRaw = (string) $generator->solve();
+
+            // Parse structured output.
+            $genOutput = json_decode($genRaw, TRUE);
+            $answer = $genOutput['answer'] ?? $genRaw;
+            $runReview = !empty($genOutput['run_review']);
+
+            $finalAnswer = $answer;
+
+            if (!$runReview) {
+                // Generator says no review needed — we're done.
+                break;
+            }
+
+            // ── 2. Run the reviewer. ──
+            $reviewInput = "Original request:\n{$originalUserText}\n\nGenerator response:\n{$answer}";
+            $reviewerMessages = [new ChatMessage('user', $reviewInput)];
+
+            /** @var \Drupal\ai_agents\PluginInterfaces\ConfigAiAgentInterface $reviewer */
+            $reviewer = $this->agentsManager->createInstance('sdc_reviewer');
+            $reviewer->setChatHistory($reviewerMessages);
+            $reviewer->setProgressThreadId($poll_thread_id);
+            $reviewer->setAiProvider($provider);
+            $reviewer->setModelName($model_name);
+            $reviewer->setAiConfiguration([]);
+            $reviewer->determineSolvability();
+            $revRaw = (string) $reviewer->solve();
+
+            // Parse reviewer structured output.
+            $revOutput = json_decode($revRaw, TRUE);
+            $rating = $revOutput['rating'] ?? null;
+            $improvements = $revOutput['improvements'] ?? '';
+            $errorMessages = $revOutput['error_messages'] ?? '';
+            $shouldRefix = !empty($revOutput['should_refix']);
+
+            if (!$shouldRefix) {
+                // Reviewer is satisfied — append review summary and finish.
+                $reviewSummary = "\n\n---\n**Review** (Rating: {$rating}/10)";
+                if (!empty($improvements)) {
+                    $reviewSummary .= "\n\n**Suggested improvements:**\n{$improvements}";
+                }
+                $finalAnswer .= $reviewSummary;
+                break;
+            }
+
+            // ── 3. Build context for next generator iteration. ──
+            $feedbackParts = ["Original request:\n{$originalUserText}"];
+            $feedbackParts[] = "NOTE: The component already exists. You are refining it based on reviewer feedback.";
+            if (!empty($improvements)) {
+                $feedbackParts[] = "Reviewer improvements:\n{$improvements}";
+            }
+            if (!empty($errorMessages)) {
+                $feedbackParts[] = "Error messages found:\n{$errorMessages}";
+            }
+            $feedbackParts[] = "Please fix the issues described above.";
+
+            $generatorMessages = [new ChatMessage('user', implode("\n\n", $feedbackParts))];
+        }
+
+        return $finalAnswer;
+    }
+
+    // -----------------------------------------------------------------------
     // Progress polling.
     // -----------------------------------------------------------------------
 
@@ -301,6 +422,7 @@ class AIAgentsOrchestratorController extends ControllerBase
                         $items[] = [
                             'type' => 'tool_finished',
                             'tool_name' => $data['tool_name'] ?? '',
+                            'tool_input' => $data['tool_input'] ?? '',
                             'tool_id' => $data['tool_id'] ?? '',
                             'tool_feedback_message' => $data['tool_feedback_message'] ?? '',
                             'time' => $data['time'] ?? 0,
@@ -416,7 +538,8 @@ class AIAgentsOrchestratorController extends ControllerBase
     public function createThread(): JsonResponse
     {
         $body = json_decode($this->currentRequest->getContent(), TRUE) ?? [];
-        $type = ($body['type'] ?? 'planning') === 'direct' ? 'direct' : 'planning';
+        $rawType = $body['type'] ?? 'planning';
+        $type = in_array($rawType, ['direct', 'component'], TRUE) ? $rawType : 'planning';
         $agentId = (string) ($body['agent_id'] ?? '');
 
         // Resolve agent label for direct threads to use as thread name.
@@ -439,6 +562,10 @@ class AIAgentsOrchestratorController extends ControllerBase
         if ($agentLabel !== '') {
             $metadata = $this->planDocumentService->readMetadata();
             $metadata['name'] = $agentLabel;
+            $this->planDocumentService->writeMetadata($metadata);
+        } elseif ($type === 'component') {
+            $metadata = $this->planDocumentService->readMetadata();
+            $metadata['name'] = 'Component Generator';
             $this->planDocumentService->writeMetadata($metadata);
         }
 

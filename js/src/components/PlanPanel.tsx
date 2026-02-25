@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { renderMarkdown } from '../utils/renderMarkdown';
 
 interface PlanStep {
     id: string;
@@ -324,7 +325,7 @@ export function PlanPanel({ planStatusUrl, savePlanUrl, executeUrl, isAgentRunni
                             {step.result && (
                                 <div className="plan-step-detail plan-step-result">
                                     <span className="plan-step-label">Result:</span>
-                                    <span className="plan-step-value">{step.result}</span>
+                                    <span className="plan-step-value plan-step-value--md" dangerouslySetInnerHTML={{ __html: renderMarkdown(step.result) }} />
                                 </div>
                             )}
                         </div>

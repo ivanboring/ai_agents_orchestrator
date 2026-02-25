@@ -199,8 +199,10 @@ class PlanDocumentService
             $name = '';
             $isExecuting = FALSE;
             $executionReady = FALSE;
+            $lastUpdated = filemtime($fullPath);
             if (file_exists($metaPath)) {
                 $content = file_get_contents($metaPath);
+                $lastUpdated = filemtime($metaPath) ?: $lastUpdated;
                 if ($content !== FALSE) {
                     $meta = json_decode($content, TRUE);
                     if (is_array($meta)) {
@@ -219,12 +221,13 @@ class PlanDocumentService
                 'agent_id' => $meta['agent_id'] ?? '',
                 'is_executing' => $isExecuting,
                 'execution_ready' => $executionReady,
+                'last_updated' => $lastUpdated ?: 0,
             ];
         }
 
-        // Sort newest first.
+        // Sort by last updated, newest first.
         usort($threads, function ($a, $b) {
-            return strcmp($b['id'], $a['id']);
+            return $b['last_updated'] <=> $a['last_updated'];
         });
 
         return $threads;

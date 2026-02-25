@@ -3,15 +3,17 @@ import { ThreadTabs } from './components/ThreadTabs';
 import { ChatPanel } from './components/ChatPanel';
 import { PlanPanel } from './components/PlanPanel';
 import { ExecutionPanel } from './components/ExecutionPanel';
+import { ComponentPreviewWindow } from './components/ComponentPreviewWindow';
 
 export interface ThreadInfo {
     id: string;
     name: string;
     date: string;
-    type: 'planning' | 'direct';
+    type: 'planning' | 'direct' | 'component';
     agent_id: string;
     is_executing: boolean;
     execution_ready: boolean;
+    last_updated: number;
 }
 
 interface OrchestratorAppProps {
@@ -62,13 +64,19 @@ export function OrchestratorApp({
     const [sidebarOpen, setSidebarOpen] = useState(true);
     const prevAgentRunning = useRef(false);
 
+    /* ---- Component preview state ---- */
+    const threadComponentMap = useRef<Record<string, string>>({});
+    const [previewComponentId, setPreviewComponentId] = useState<string | null>(null);
+    const [previewWindowOpen, setPreviewWindowOpen] = useState(false);
+    const [previewRefreshCounter, setPreviewRefreshCounter] = useState(0);
+
     // Poll plan status ONLY while the agent is actively running.
     // When steps appear, set hasPlan and auto-open the Plan panel.
     useEffect(() => {
         if (!isAgentRunning || !activeThreadId) return;
-        // Skip plan polling for direct agent threads.
+        // Skip plan polling for direct agent and component threads.
         const threadType = threads.find(t => t.id === activeThreadId)?.type;
-        if (threadType === 'direct') return;
+        if (threadType === 'direct' || threadType === 'component') return;
         const url = withThread(planStatusUrl, activeThreadId);
         let cancelled = false;
 
@@ -92,9 +100,9 @@ export function OrchestratorApp({
     // Auto-open Plan panel when the agent starts running.
     useEffect(() => {
         if (isAgentRunning && !prevAgentRunning.current && drawerOpen) {
-            // Skip auto-open for direct agent threads.
+            // Skip auto-open for direct agent and component threads.
             const threadType = threads.find(t => t.id === activeThreadId)?.type;
-            if (threadType !== 'direct') {
+            if (threadType !== 'direct' && threadType !== 'component') {
                 setSidePanel('plan');
             }
         }
@@ -143,6 +151,7 @@ export function OrchestratorApp({
                             agent_id: '',
                             is_executing: false,
                             execution_ready: false,
+                            last_updated: Math.floor(Date.now() / 1000),
                         };
                         setThreads([newThread]);
                         setActiveThreadId(created.id);
@@ -154,7 +163,7 @@ export function OrchestratorApp({
         })();
     }, [threadsUrl]);
 
-    const handleCreateThread = useCallback(async (type: 'planning' | 'direct' = 'planning', agentId: string = '') => {
+    const handleCreateThread = useCallback(async (type: 'planning' | 'direct' | 'component' = 'planning', agentId: string = '') => {
         try {
             const res = await fetch(threadsUrl, {
                 method: 'POST',
@@ -171,6 +180,7 @@ export function OrchestratorApp({
                     agent_id: agentId,
                     is_executing: false,
                     execution_ready: false,
+                    last_updated: Math.floor(Date.now() / 1000),
                 };
                 setThreads(prev => [newThread, ...prev]);
                 setActiveThreadId(data.id);
@@ -183,6 +193,16 @@ export function OrchestratorApp({
         // Reset — the effect below will re-evaluate and auto-open if needed.
         setHasPlan(false);
         setSidePanel(null);
+
+        // Restore component preview for this thread if one was previously picked.
+        const storedComponent = threadComponentMap.current[threadId];
+        if (storedComponent) {
+            setPreviewComponentId(storedComponent);
+            setPreviewWindowOpen(true);
+        } else {
+            setPreviewComponentId(null);
+            setPreviewWindowOpen(false);
+        }
     }, []);
 
     // On thread change (including initial load): re-fetch thread metadata
@@ -193,8 +213,8 @@ export function OrchestratorApp({
 
         const currentThread = threads.find(t => t.id === activeThreadId);
 
-        // Skip panel logic for direct agent threads.
-        if (currentThread?.type === 'direct') return;
+        // Skip panel logic for direct agent and component threads.
+        if (currentThread?.type === 'direct' || currentThread?.type === 'component') return;
 
         (async () => {
             // Re-fetch threads to get the latest is_executing state.
@@ -255,6 +275,7 @@ export function OrchestratorApp({
                                     agent_id: '',
                                     is_executing: false,
                                     execution_ready: false,
+                                    last_updated: Math.floor(Date.now() / 1000),
                                 };
                                 setThreads([nt]);
                                 setActiveThreadId(created.id);
@@ -287,6 +308,18 @@ export function OrchestratorApp({
         }
         setHasPlan(false);
         setSidePanel(null);
+    }, [activeThreadId]);
+
+    const handleComponentPicked = useCallback((componentId: string) => {
+        setPreviewComponentId(componentId);
+        setPreviewWindowOpen(true);
+        // Increment refresh counter so the iframe reloads even when the same
+        // component is re-picked (e.g. after a fix iteration).
+        setPreviewRefreshCounter(c => c + 1);
+        // Persist per thread so it reopens when switching back.
+        if (activeThreadId) {
+            threadComponentMap.current[activeThreadId] = componentId;
+        }
     }, [activeThreadId]);
 
     const handleStepsChange = useCallback((count: number) => {
@@ -380,14 +413,16 @@ export function OrchestratorApp({
                             chatHistoryUrl={threadChatHistoryUrl}
                             threadName={currentThreadName}
                             isDirect={currentThread?.type === 'direct'}
+                            isComponent={currentThread?.type === 'component'}
                             onThreadNamed={handleThreadNamed}
                             onAgentRunningChange={setIsAgentRunning}
+                            onComponentPicked={handleComponentPicked}
                         />
                     </div>
                 </div>
 
                 {/* Footer: Plan / Execution toggle tabs (only when plan exists) */}
-                {hasPlan && !sidePanel && currentThread?.type !== 'direct' && (
+                {hasPlan && !sidePanel && currentThread?.type !== 'direct' && currentThread?.type !== 'component' && (
                     <div className="orchestrator-drawer-footer">
                         <button
                             type="button"
@@ -445,6 +480,28 @@ export function OrchestratorApp({
                         )}
                     </div>
                 </div>
+            )}
+
+            {/* Component preview window */}
+            {previewComponentId && (
+                <ComponentPreviewWindow
+                    componentId={previewComponentId}
+                    isOpen={previewWindowOpen}
+                    onClose={() => setPreviewWindowOpen(false)}
+                    refreshKey={previewRefreshCounter}
+                />
+            )}
+
+            {/* Show Preview button when window is closed but component exists */}
+            {previewComponentId && !previewWindowOpen && (
+                <button
+                    type="button"
+                    className="orchestrator-show-preview-btn"
+                    onClick={() => setPreviewWindowOpen(true)}
+                    title="Reopen component preview"
+                >
+                    🧩 Show Preview
+                </button>
             )}
         </>
     );

@@ -1,7 +1,10 @@
 uuid: 15a5baba-b6b6-498e-a432-8ef33b09b360
 langcode: en
 status: true
-dependencies: {  }
+dependencies:
+  enforced:
+    module:
+      - ai_agents_orchestrator
 id: planning_agent
 label: 'Planning Agent'
 description: 'This agent write a plan to later be executed.'
@@ -18,6 +21,7 @@ system_prompt: |-
   - **Add** a new step (if the plan is incomplete)
   - **Update** an existing step (if it needs correction)
   - **Remove** a step (if it's no longer needed)
+  - **Answer** if the user is just asking one question that can be answered directly by one agent, then just set it as finished and answer.
   - **Mark finished** (if the plan fully covers the user's request)
 
   Then respond with a short message (1-2 sentences) explaining what you did, and you will be called again.
@@ -35,10 +39,13 @@ system_prompt: |-
      - If an existing step is wrong, UPDATE it instead of adding a duplicate.
   5. Do you know which agent handles this? If unsure, use orchestrator_execute_agent
      to ASK the candidate agent (append "Do not take any action yet." to your question).
+     For creation of config, always ask if this exists already.
   6. Does the agent's answer raise questions only the user can answer? (API keys,
-     ambiguous IDs, destructive choices) → Ask the user, do NOT add a step yet.
-  7. Otherwise → Call orchestrator_plan with operation=add to add exactly one step.
-  8. Respond with a short summary of what you added.
+     ambiguous IDs, destructive choices) → Use the finish plan finished tool and ask.
+  7. (or) Does the agent's answer say that something exists already, stop here and ask
+       the user how to continue → Use the finish plan finished tool and ask.
+  8. Otherwise → Call orchestrator_plan with operation=add to add exactly one step.
+  9. Respond with a short summary of what you added.
   ```
 
   ## Rules for Adding Steps
@@ -56,6 +63,7 @@ system_prompt: |-
   - Only ask about the portion that agent controls. Don't ask one agent about another agent's responsibility.
   - If the agent answers with questions or options, make a reasonable decision yourself unless it requires user input (API keys, unique IDs the user must choose, or destructive operations).
   - Do NOT add a plan step and ask an agent in the same iteration. Ask first, then add in the next iteration.
+  -  **IMPORTANT** If the users wants to add configuration, make sure to ask so something similar doesn't exists. If so, the planning should end and the user should be asked what to do.
 
   ## What Requires User Input
 
@@ -119,12 +127,12 @@ default_information_tools: |
   agents_available:
     label: 'The Agents Available'
     description: 'The current agents available'
-    tool: tool:orchestrator_list_agents
+    tool: 'tool:orchestrator_list_agents'
     parameters: {  }
   current_plan:
     label: 'The Current Plan'
     description: 'The current plan to change to your liking'
-    tool: tool:orchestrator_plan
+    tool: 'tool:orchestrator_plan'
     parameters:
       operation: read_all
 tool_usage_limits:
