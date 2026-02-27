@@ -1,0 +1,16 @@
+{
+  "name": "drupal/ai_agents_orchestrator",
+  "description": "Test orchestration for AI Agents.",
+  "type": "drupal-module",
+  "license": "GPL-2.0-or-later",
+  "authors": [
+    {
+      "name": "Marcus Johansson",
+      "email": "me@marcusmailbox.com"
+    }
+  ],
+  "require": {
+    "drupal/ai": "^1.2",
+    "drupal/ai_agents": "^1.2"
+  }
+}
