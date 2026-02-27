@@ -379,7 +379,7 @@
 .chat-message-content .markdown-rendered h4 {
     font-weight: 700;
     margin: 12px 0 6px;
-    color: #e0e0e0;
+    color: #555;
 }
 
 .chat-message-content .markdown-rendered h1 {
@@ -433,7 +433,7 @@
 }
 
 .chat-message-content .markdown-rendered strong {
-    color: #e0e0e0;
+    color: #555;
     font-weight: 700;
 }
 
