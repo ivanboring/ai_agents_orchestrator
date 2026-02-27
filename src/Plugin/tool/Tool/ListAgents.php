@@ -69,7 +69,7 @@ class ListAgents extends ToolBase
                     continue;
                 }
                 // No planning agent :)
-                if (in_array($definition['id'], ['planning_agent', 'orchestrator'])) {
+                if (in_array($definition['id'], ['planning_agent', 'orchestrator', 'execution_agent'])) {
                     continue;
                 }
                 $agents[] = [
