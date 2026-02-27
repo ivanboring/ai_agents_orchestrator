@@ -1,5 +1,5 @@
 {
-  "name": "drupal/ai_agents_orchestrator",
+  "name": "ivanboring/ai_agents_orchestrator",
   "description": "Test orchestration for AI Agents.",
   "type": "drupal-module",
   "license": "GPL-2.0-or-later",
