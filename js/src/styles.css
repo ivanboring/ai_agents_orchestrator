@@ -1003,7 +1003,7 @@
     font-size: 13px;
     font-weight: 700;
     margin: 8px 0 4px;
-    color: #c1c2c5;
+    color: #555;
 }
 
 .plan-step-value--md p {
@@ -1040,7 +1040,7 @@
 }
 
 .plan-step-value--md strong {
-    color: #c1c2c5;
+    color: #555;
 }
 
 .plan-step-value--md a {
@@ -1760,7 +1760,7 @@
 .cpw-title {
     font-size: 13px;
     font-weight: 600;
-    color: #c1c2c5;
+    color: #555;
 }
 
 .cpw-actions {
@@ -1785,7 +1785,7 @@
 
 .cpw-btn:hover {
     background: #373a40;
-    color: #c1c2c5;
+    color: #555;
 }
 
 .cpw-btn--close:hover {
